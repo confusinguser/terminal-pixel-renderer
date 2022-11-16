@@ -1,22 +1,30 @@
+use std::ops::Range;
+
 fn main() {
-    let pixels = sine_curve();
+    let pixels = draw_curve(3f64..40f64, -1f64..1f64, 348, 10, |x: f64| x.sin());
 
     let highest_x = get_highest_x(&pixels);
-    println!("highest_x: {}", highest_x);
     let out = render(&pixels, highest_x);
     println!("{}", out);
 }
 
-fn sine_curve() -> [Vec<bool>; 101] {
-    const INIT: Vec<bool> = Vec::new();
-    let mut output: [Vec<bool>; 101] = [INIT; 101];
-    for i in 0..300 {
-        let mut y_val = (((i as f32 / 10_f32).sin()) * 40_f32 + 50_f32).round() as usize;
-        y_val = y_val.max(0).min(100);
-        if output[y_val] == INIT {
-            output[y_val] = vec![false; 300];
-        }
-        output[y_val][i] = true;
+fn draw_curve<F>(
+    x_range: Range<f64>,
+    y_range: Range<f64>,
+    x_pixels: usize,
+    y_pixels: usize,
+    func: F,
+) -> Vec<Vec<bool>>
+where
+    F: Fn(f64) -> f64,
+{
+    let mut output: Vec<Vec<bool>> = vec![vec![false; x_pixels]; y_pixels + 1];
+    for i in 0..x_pixels {
+        let mut y_val =
+            func(i as f64 * (x_range.end - x_range.start) / x_pixels as f64 + x_range.start);
+        y_val = (y_val.max(y_range.start).min(y_range.end) - y_range.start) * y_pixels as f64
+            / (y_range.end - y_range.start);
+        output[y_val.round() as usize][i] = true;
     }
     output
 }
