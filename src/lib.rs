@@ -1,9 +1,10 @@
 extern crate crossterm;
 
-use crossterm::{cursor, ExecutableCommand};
+use crossterm::{Command, cursor, ExecutableCommand, execute};
 use std::io::stdout;
 use std::ops::Range;
 use std::sync::Mutex;
+use crossterm::style::Color;
 
 
 // fn main() {
@@ -115,20 +116,92 @@ impl TerminalDisplay {
         output
     }
 
+    pub fn render_full_block(pixels: &[Vec<bool>]) -> String {
+        let mut char_col = 0;
+        let mut char_row = 0;
+        let mut output = String::new();
+        loop {
+            if char_row >= pixels.len() {
+                break;
+            }
+            loop {
+                if char_col >= get_highest_x(pixels) {
+                    break;
+                }
+                if char_col >= pixels[char_row].len() || !pixels[char_row][char_col] {
+                    output.push_str(" ")
+                } else {
+                    output.push_str("█");
+                }
+                char_col += 1;
+            }
+            output.push_str("\n");
+            char_row += 1;
+            char_col = 0;
+        }
+
+        output
+    }
+
+    pub fn render_full_block_color(pixels: &[Vec<Option<crossterm::style::Color>>]) -> String {
+        let mut char_col = 0;
+        let mut char_row = 0;
+        let mut output = String::new();
+        loop {
+            if char_row >= pixels.len() {
+                break;
+            }
+            loop {
+                if char_col >= get_highest_x(pixels) {
+                    break;
+                }
+                match pixels[char_row][char_col] {
+                    None => {
+                        output.push_str(" ")
+                    }
+                    Some(color) => {
+                        if char_col >= pixels[char_row].len() {
+                            output.push_str(" ")
+                        } else {
+                            if char_col == 0 && char_row != 0 && *pixels[char_row - 1].last().unwrap() != Some(color)
+                                || char_col > 0 && pixels[char_row][char_col - 1] != Some(color) {
+                                output.push_str(&*crossterm::style::SetForegroundColor(color).to_string());
+                            }
+                            output.push_str("█");
+                        }
+                    }
+                }
+                char_col += 1;
+            }
+            output.push_str("\n");
+            char_row += 1;
+            char_col = 0;
+        }
+
+        output
+    }
+
     pub fn update_display(&mut self, string: String) {
         let _lock = self.lock.lock().expect("Locking for printing");
-        let num_rows = string.matches('\n').count();
+        let raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap();
+        crossterm::terminal::enable_raw_mode();
+        let rows: Vec<&str> = string.split('\n').collect();
         if self.num_rows != 0 {
             stdout().execute(cursor::MoveUp(self.num_rows as u16)).unwrap();
         }
-        print!("{}", string);
-        if self.num_rows > num_rows {
-            for _ in 0..(self.num_rows - num_rows) {
-                print!("\n")
+        for row in &rows {
+            print!("{}", row);
+            execute!(stdout(), cursor::MoveToColumn(0), cursor::MoveDown(1));
+        }
+        if self.num_rows > rows.len() {
+            for _ in 0..(self.num_rows - rows.len()) {
+                print!("")
             }
         }
-        self.num_rows = num_rows;
-
+        self.num_rows = rows.len();
+        if !raw_mode {
+            crossterm::terminal::disable_raw_mode();
+        }
     }
 
     pub fn move_cursor_up(&self, num_rows: u16) {
@@ -137,7 +210,7 @@ impl TerminalDisplay {
     }
 }
 
-fn get_highest_x(pixels: &[Vec<bool>]) -> usize {
+fn get_highest_x<T>(pixels: &[Vec<T>]) -> usize {
     let mut max = 0;
 
     for row in pixels {
