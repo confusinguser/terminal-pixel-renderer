@@ -143,41 +143,24 @@ impl TerminalDisplay {
         output
     }
 
-    pub fn render_full_block_color(pixels: &[Vec<Option<crossterm::style::Color>>]) -> String {
-        let mut char_col = 0;
-        let mut char_row = 0;
+    pub fn render_full_block_color(pixels: &[Option<crossterm::style::Color>], width: u16) -> String {
         let mut output = String::new();
-        loop {
-            if char_row >= pixels.len() {
-                break;
-            }
-            loop {
-                if char_col >= get_highest_x(pixels) {
-                    break;
+        for (i, pixel) in pixels.iter().enumerate() {
+            match pixel {
+                None => {
+                    output.push_str(" ")
                 }
-                match pixels[char_row][char_col] {
-                    None => {
-                        output.push_str(" ")
+                Some(color) => {
+                    if i > 0 && pixels[i - 1] != Some(*color) {
+                        output.push_str(&*crossterm::style::SetForegroundColor(*color).to_string());
                     }
-                    Some(color) => {
-                        if char_col >= pixels[char_row].len() {
-                            output.push_str(" ")
-                        } else {
-                            if char_col == 0 && char_row != 0 && *pixels[char_row - 1].last().unwrap() != Some(color)
-                                || char_col > 0 && pixels[char_row][char_col - 1] != Some(color) {
-                                output.push_str(&*crossterm::style::SetForegroundColor(color).to_string());
-                            }
-                            output.push_str("█");
-                        }
-                    }
+                    output.push_str("█");
                 }
-                char_col += 1;
             }
-            output.push_str("\n");
-            char_row += 1;
-            char_col = 0;
+            if i == 0 && i % width as usize == 1 {
+                output.push_str("\n");
+            }
         }
-
         output
     }
 
